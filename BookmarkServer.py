@@ -41,6 +41,7 @@
 #
 # After writing each step, restart the server and run test.py to test it.
 
+import os
 import http.server
 import requests
 from urllib.parse import unquote, parse_qs
@@ -68,10 +69,12 @@ form = '''<!DOCTYPE html>
 
 
 def CheckURI(uri, timeout=5):
-    data = requests.get(uri, timeout=timeout)
-    if (data.status_code == 200 ):
-        return True
-    else:
+    try:
+        r = requests.get(uri, timeout=timeout)
+        # If the GET request returns, was it a 200 OK?
+        return r.status_code == 200
+    except requests.RequestException:
+        # If the GET request raised an exception, it's not OK.
         return False
 
 
@@ -124,21 +127,18 @@ class Shortener(http.server.BaseHTTPRequestHandler):
         shortname = params["shortname"][0]
 
         if CheckURI(longuri):
-            # This URI is good!  Remember it under the specified name.
             memory[shortname] = longuri
-
-            # 4. Serve a redirect to the root page (the form).
             self.send_response(303)
             self.send_header('Location', '/')
             self.end_headers()
         else:
-            # Didn't successfully fetch the long URI.
-            self.send_header(404)
+            self.send_response(404)
             self.send_header('Content-type', 'text/plain; charset=utf-8')
             self.end_headers()
             self.wfile.write("Didn't successfully fetch the long URI".encode())
 
 if __name__ == '__main__':
-    server_address = ('', 8000)
+    port = int(os.environ.get('PORT', 8000))
+    server_address = ('', port)
     httpd = http.server.HTTPServer(server_address, Shortener)
     httpd.serve_forever()
